@@ -60,7 +60,7 @@ def status():
     return "liberado", f'botão "{text}" apontando para {href}'
 
 
-def send_whatsapp(msg):
+def send_whatsapp(msg, silent=False):
     phone, key = os.getenv("WHATSAPP_PHONE"), os.getenv("CALLMEBOT_APIKEY")
     if not (phone and key):
         return
@@ -70,19 +70,22 @@ def send_whatsapp(msg):
     print("WhatsApp enviado")
 
 
-def send_telegram(msg):
+def send_telegram(msg, silent=False):
     token, chat = os.getenv("TELEGRAM_BOT_TOKEN"), os.getenv("TELEGRAM_CHAT_ID")
     if not (token and chat):
         return
-    data = urllib.parse.urlencode({"chat_id": chat, "text": msg}).encode()
+    params = {"chat_id": chat, "text": msg}
+    if silent:  # chega no chat sem tocar nem vibrar
+        params["disable_notification"] = "true"
+    data = urllib.parse.urlencode(params).encode()
     urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=data, timeout=30).read()
     print("Telegram enviado")
 
 
-def notify(msg):
+def notify(msg, silent=False):
     for sender in (send_whatsapp, send_telegram):
         try:
-            sender(msg)
+            sender(msg, silent)
         except Exception as e:
             print(f"{sender.__name__} falhou: {e}")
 
@@ -108,7 +111,7 @@ def main():
     set_output(False)
 
     if mode == "heartbeat":
-        notify(f"✅ Monitor Osesp ativo ({now}). Status: {detail}. Sigo vigiando a cada 5 min.")
+        notify(f"✅ Monitor Osesp ativo ({now}). Status: {detail}. Sigo vigiando a cada 5 min.", silent=True)
     elif mode == "test":
         notify(f"🧪 Teste do monitor Osesp ({now}). Status atual: {detail}.")
 

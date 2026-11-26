@@ -46,18 +46,18 @@ def read_button(page):
 
 
 def status():
-    """Retorna (estado, detalhe). estado: em_breve | liberado | mudou | erro."""
+    """Retorna (estado, detalhe, link). estado: em_breve | liberado | mudou | erro."""
     try:
         page = fetch_page()
     except Exception as e:  # rede fora, 5xx etc.: tenta de novo na próxima rodada
-        return "erro", f"falha ao acessar a página: {e}"
+        return "erro", f"falha ao acessar a página: {e}", None
     button = read_button(page)
     if button is None:
-        return "mudou", "o botão de ingresso não foi encontrado (a página mudou de formato)"
+        return "mudou", "o botão de ingresso não foi encontrado (a página mudou de formato)", None
     text, href = button
     if "em breve" in text.lower() and href.rstrip("/") == GENERIC_HREF:
-        return "em_breve", f'botão "{text}"'
-    return "liberado", f'botão "{text}" apontando para {href}'
+        return "em_breve", f'botão "{text}"', href
+    return "liberado", f'botão "{text}"', href
 
 
 def send_whatsapp(msg, silent=False):
@@ -90,23 +90,27 @@ def notify(msg, silent=False):
             print(f"{sender.__name__} falhou: {e}")
 
 
-def set_output(released):
+def set_output(released, link=""):
     out = os.getenv("GITHUB_OUTPUT")
     if out:
         with open(out, "a") as f:
             f.write(f"released={'true' if released else 'false'}\n")
+            f.write(f"link={link}\n")
 
 
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "check"
-    state, detail = status()
+    state, detail, href = status()
     now = datetime.now(BRT).strftime("%d/%m %H:%M")
     print(f"[{now}] {state}: {detail}")
 
     if state in ("liberado", "mudou"):
-        notify("🎻 OSESP: a página do Recital de 04/12 mudou! "
-               f"Provavelmente as reservas abriram ({detail}). Reserve já: {PAGE_URL}")
-        set_output(True)
+        link = href or PAGE_URL
+        notify("🎻 OSESP: as reservas do Recital de 04/12 parecem ter aberto!\n\n"
+               f"👉 Reserve aqui (link do botão novo): {link}\n\n"
+               f"O que mudou: {detail}.\n"
+               f"Página do concerto: {PAGE_URL}")
+        set_output(True, link)
         return
     set_output(False)
 

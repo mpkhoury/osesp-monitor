@@ -56,7 +56,7 @@ jobs:
         run: |
           gh issue create -R "$GITHUB_REPOSITORY" \
             --title "🎻 Reservas do Recital Osesp (04/12) liberadas!" \
-            --body "A página mudou. Reserve agora: https://osesp.art.br/osesp/pt/concerto/2029?date=2026-12-04T22:30:00.000Z" \
+            --body "A página mudou. Reserve aqui (link do botão novo): ${{ steps.monitor.outputs.link }}" \
             --assignee "${{ github.repository_owner }}"
           gh workflow disable "Monitor Osesp" -R "$GITHUB_REPOSITORY"
         env:

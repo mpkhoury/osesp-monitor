@@ -1,0 +1,63 @@
+name: Monitor Osesp
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # checagem a cada 5 min
+    - cron: "0 12 * * *"    # 9h de Brasília: mensagem diária "monitor ativo"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "check | heartbeat | test"
+        default: "test"
+
+permissions:
+  actions: write
+  issues: write
+
+concurrency:
+  group: osesp-monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Para depois do concerto (05/12)
+        id: expired
+        run: |
+          if [ "$(TZ=America/Sao_Paulo date +%Y%m%d)" -gt 20261204 ]; then
+            echo "Concerto já passou, desligando o monitor."
+            gh workflow disable "Monitor Osesp" -R "$GITHUB_REPOSITORY"
+            echo "stop=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Verifica a página
+        id: monitor
+        if: steps.expired.outputs.stop != 'true'
+        run: |
+          MODE="${{ inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            if [ "${{ github.event.schedule }}" = "0 12 * * *" ]; then MODE=heartbeat; else MODE=check; fi
+          fi
+          python3 monitor.py "$MODE"
+        env:
+          WHATSAPP_PHONE: ${{ secrets.WHATSAPP_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+      - name: Abre issue (aviso por e-mail) e desliga o monitor
+        if: steps.monitor.outputs.released == 'true'
+        run: |
+          gh issue create -R "$GITHUB_REPOSITORY" \
+            --title "🎻 Reservas do Recital Osesp (04/12) liberadas!" \
+            --body "A página mudou. Reserve agora: https://osesp.art.br/osesp/pt/concerto/2029?date=2026-12-04T22:30:00.000Z" \
+            --assignee "${{ github.repository_owner }}"
+          gh workflow disable "Monitor Osesp" -R "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
